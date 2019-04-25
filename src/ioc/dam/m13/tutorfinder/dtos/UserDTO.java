@@ -10,8 +10,8 @@ public class UserDTO {
     private int userId;
     private String userName;
     private String userMail;
-    private String userRole;
     private String userPswd;
+    private String userRole;
     
     //Getters
     public String getUserPswd() {
