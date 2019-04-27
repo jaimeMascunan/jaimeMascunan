@@ -5,10 +5,19 @@ import ioc.dam.m13.tutorfinder.dtos.AdDTO;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.io.FileInputStream;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 
 /**
  * Servidor que s'encarrega de rebre les solicituts dels clients
@@ -39,26 +48,50 @@ public class TFServer extends Thread{
     private static final String LOGIN_CODE_STRING = "loginString";
     private static final String LOGIN_CODE_BOOLEAN = "loginBoolean";
     
-    private Socket socket = null;
-    private DataInputStream dis = null;
-    private DataOutputStream dos = null;
+    private static SSLSocket socket = null;
+    private static SSLServerSocket serverSocket = null;
+    private static DataInputStream dis = null;
+    private static DataOutputStream dos = null;
         
-    public TFServer( Socket s) {
+    public TFServer( SSLSocket s) {
         
         this.socket = s;        
     }
     
     public static void main(String[] args) throws Exception {
         
-        ServerSocket ss = new ServerSocket(SERVER_PORT);
-        Socket s;
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        keyStore.load(new FileInputStream("src\\ioc\\dam\\m13\\tutorfinder\\certs\\server\\ServerKeyStore.jks"),
+            "tutorfinder".toCharArray());
+
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        kmf.init(keyStore, "tutorfinder".toCharArray());
+
+        KeyStore trustedStore = KeyStore.getInstance("JKS");
+        trustedStore.load(new FileInputStream(
+            "src\\ioc\\dam\\m13\\tutorfinder\\certs\\server\\serverTrustedCerts.jks"), "tutorfinder"
+            .toCharArray());
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(trustedStore);
+
+        SSLContext sc = SSLContext.getInstance("TLS");
+        TrustManager[] trustManagers = tmf.getTrustManagers();
+        KeyManager[] keyManagers = kmf.getKeyManagers();
+        sc.init(keyManagers, trustManagers, null);
+
+        SSLServerSocketFactory ssf = sc.getServerSocketFactory();
+        serverSocket = (SSLServerSocket) ssf.createServerSocket(SERVER_PORT);
         
         System.out.println("Server is running ...");
         
         while (true) {            
             
-            s = ss.accept();
-            new TFServer(s).start();        
+            socket = (SSLSocket) serverSocket.accept();
+            System.out.println("client accepted");
+            TFServer server = new TFServer(socket);
+            server.start();
+            server.join();      
         }
     }
     
@@ -237,6 +270,7 @@ public class TFServer extends Thread{
             dos.writeUTF(userDTO.getUserPswd());
             dos.writeUTF(userDTO.getUserRole());
             dos.flush();
+            System.out.println("user: " + userDTO.getUserId());
                     
         } catch (Exception e) {       
             e.printStackTrace();
@@ -257,6 +291,7 @@ public class TFServer extends Thread{
             String userMail = dis.readUTF();
             String userPswd = dis.readUTF();
             String userRole = dis.readUTF();
+            System.out.println("user: " + userName);
             
             //Creem el nou usuari
             boolean ret = dao.newUser(userName, userMail, userPswd, userRole);
@@ -288,12 +323,14 @@ public class TFServer extends Thread{
             String userName = dis.readUTF();
             String userMail = dis.readUTF();
             String userRole = dis.readUTF();
+            System.out.println("user: " + userName);
             
             //Canviem les dades de l'usari
             boolean ret = dao.editUser(userId, userName, userMail, userRole);
             
             //Retornem al client el resultat
             dos.writeBoolean(ret);
+            dos.flush();
             
         } catch (Exception e) {
             
@@ -318,7 +355,6 @@ public class TFServer extends Thread{
             System.out.println("id " + userName);
             System.out.println("user: " + newPswd);
             
-
             //Canviem la contrasenya de l'usari
             boolean ret = dao.editUserPswd(userName, newPswd);
             
@@ -353,6 +389,7 @@ public class TFServer extends Thread{
                     //Enviem el nombre d'usuaris que hi ha de resposta
                     nUsers = users.size();
                     dos.writeInt(nUsers);
+                    dos.flush();
                     
                     for (UserDTO userDTO : users) {
                         //Retornem els objectes per separat al client
@@ -361,12 +398,11 @@ public class TFServer extends Thread{
                         dos.writeUTF(userDTO.getUserMail());
                         dos.writeUTF(userDTO.getUserPswd());
                         dos.writeUTF(userDTO.getUserRole());
-                        
+                        dos.flush();
                     }
                     break;
                                    
             }
-            dos.flush();
             
         } catch (Exception e) {
             
@@ -447,6 +483,7 @@ public class TFServer extends Thread{
             //Enviem el nombre d'anuncis que hi ha de resposta
             nAds = ads.size();
             dos.writeInt(nAds);
+            dos.flush();
             
             for (AdDTO ad : ads) {
                 //Retornem els objectes per separat al client
@@ -458,6 +495,8 @@ public class TFServer extends Thread{
                 dos.writeInt(ad.getAdTypeId());
                 dos.writeUTF(ad.getTypesName());
                 dos.writeInt(ad.getAdPrice());
+                System.out.println("user: " + ad.getAdId());
+                dos.flush();
             }
             
         } catch (Exception e) {
@@ -481,6 +520,7 @@ public class TFServer extends Thread{
             //Enviem el nombre d'anuncis que hi ha de resposta
             nAds = ads.size();
             dos.writeInt(nAds);
+            dos.flush();
             
             for (AdDTO ad : ads) {
                 //Retornem els objectes per separat al client
@@ -492,6 +532,7 @@ public class TFServer extends Thread{
                 dos.writeInt(ad.getAdTypeId());
                 dos.writeUTF(ad.getTypesName());
                 dos.writeInt(ad.getAdPrice());
+                dos.flush();
             }
             
         } catch (Exception e) {
@@ -516,6 +557,7 @@ public class TFServer extends Thread{
             //Enviem el nombre d'usuaris que hi ha de resposta
             nAds = ads.size();
             dos.writeInt(nAds);
+            dos.flush();
             System.out.println("Numero productes " + nAds);
             
                 for (AdDTO adDTO : ads) {
@@ -527,9 +569,8 @@ public class TFServer extends Thread{
                     dos.writeInt(adDTO.getAdTypeId());
                     dos.writeUTF(adDTO.getTypesName());
                     dos.writeInt(adDTO.getAdPrice());
+                    dos.flush();
                 }
-                dos.flush();
-            
         } catch (Exception e) {
             
             e.printStackTrace();
@@ -553,6 +594,7 @@ public class TFServer extends Thread{
             //Enviem el nombre d'usuaris que hi ha de resposta
             nAds = ads.size();
             dos.writeInt(nAds);
+            dos.flush();
             System.out.println("Numero productes " + nAds);
             
                 for (AdDTO adDTO : ads) {
@@ -564,8 +606,8 @@ public class TFServer extends Thread{
                     dos.writeInt(adDTO.getAdTypeId());
                     dos.writeUTF(adDTO.getTypesName());
                     dos.writeInt(adDTO.getAdPrice());
+                    dos.flush();
                 }
-                dos.flush();
             
         } catch (Exception e) {
             
@@ -699,6 +741,7 @@ public class TFServer extends Thread{
 
             //Retonem al client la resposta
             dos.writeInt(adTypeId);
+            dos.flush();
             
         } catch (Exception e) {
             e.printStackTrace();
