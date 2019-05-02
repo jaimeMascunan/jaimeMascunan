@@ -97,7 +97,7 @@ public class AdDAO {
                     + "(select ad_types_name from ad_types where ad_type_id = ad_types_id) AS ad_types_name, "
                     + "ad_price ";
             sql += "FROM ads ";
-            sql += "WHERE ad_user_id = ? AND ad_reservat = false ";
+            sql += "WHERE ad_user_id = ?";
             sql += "ORDER BY ad_id ";
             
             //Fem la consulta
@@ -213,6 +213,76 @@ public class AdDAO {
         return ads;
     }
     
+    public ArrayList<AdDTO> listAdsByAdmin(int roleId){
+        ArrayList<AdDTO> ads = new ArrayList<>();
+        
+        
+        Connection con = null;
+        PreparedStatement pstm = null;
+        ResultSet rs = null;
+               
+        try {
+            // Agafem una connexió del pool
+            con = ConnectionPool.getPool().getConnection();
+            //SQL
+            String sql = "";
+            sql += "SELECT ad_id, "
+                    + "ad_user_id, "
+                    + "(select user_name from users where ad_user_id = user_id) AS user_name, "
+                    + "ad_tittle, "
+                    + "ad_description, "
+                    + "ad_type_id, "
+                    + "(select ad_types_name from ad_types where ad_type_id = ad_types_id) AS ad_types_name, "
+                    + "ad_price ";
+            sql += "FROM ads, users ";
+            sql += "WHERE ad_user_id = user_id AND user_role_id = ? ";
+            sql += "ORDER BY ad_id ";
+            
+            //Fem la consulta
+            pstm = con.prepareStatement(sql);
+            pstm.setInt(1, roleId);
+            rs = pstm.executeQuery();
+            
+            while (rs.next()) {                
+                // Construïm l'usuari amb la resposta
+                AdDTO ad = new AdDTO();
+                
+                ad.setAdId(rs.getInt("ad_id"));
+                ad.setAdUserId(rs.getInt("ad_user_id"));
+                ad.setUserName(rs.getString("user_name"));
+                ad.setAdTittle(rs.getString("ad_tittle"));
+                ad.setAdDescription(rs.getString("ad_description"));
+                ad.setAdTypeId(rs.getInt("ad_type_id"));
+                ad.setTypesName(rs.getString("ad_types_name"));
+                ad.setAdPrice(rs.getInt("ad_price"));
+                
+                ads.add(ad);
+                
+            }
+           
+            
+        } catch (Exception e) {
+            
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        } finally {
+            
+            try {
+                // Tanquem connexions
+                if (rs != null) { rs.close();}
+                if (pstm != null) { pstm.close();}
+                ConnectionPool.getPool().releaseConnection(con);
+                
+            } catch (Exception e) {
+                
+                e.printStackTrace();
+                throw new RuntimeException(e);
+                
+            }
+        }
+        return ads;
+    }
+    
     public List<AdDTO> listAdsBookedByUser(Integer user_id){
         ArrayList<AdDTO> ads = new ArrayList<>();
                 
@@ -226,7 +296,7 @@ public class AdDAO {
             System.out.println("connexio creada listuProducts" + con.toString());
             //SQL
             String sql = "";
-            sql += "SELECT ad_id, ad_user_id, ad_tittle, ad_description, ad_type_id, ad_types_name, ad_price ";
+            sql += "SELECT ad_id, ad_user_id, users.user_name AS user_name, ad_tittle, ad_description, ad_type_id, ad_types_name, ad_price, ad_user_reserva, ad_user_reserva_name ";
             sql += "FROM ads, ad_types, users ";
             sql += "WHERE ads.ad_reservat = true AND ads.ad_type_id = ad_types.ad_types_id AND ads.ad_user_reserva = ? AND ads.ad_user_id = users.user_id";
             
@@ -241,14 +311,17 @@ public class AdDAO {
                 
                 ad.setAdId(rs.getInt("ad_id"));
                 ad.setAdUserId(rs.getInt("ad_user_id"));
+                ad.setUserName(rs.getString("user_name"));
                 ad.setAdTittle(rs.getString("ad_tittle"));
                 ad.setAdDescription(rs.getString("ad_description"));
                 ad.setAdTypeId(rs.getInt("ad_type_id"));
                 ad.setTypesName(rs.getString("ad_types_name"));
                 ad.setAdPrice(rs.getInt("ad_price"));
+                ad.setUserReservat(rs.getInt("ad_user_reserva"));
+                ad.setAdUserReservaName(rs.getString("ad_user_reserva_name"));
                 ads.add(ad);      
             }
-            System.out.println("Ens ha demanat llistar productes booked by user");
+            System.out.println("Ens ha demanat llistar productes d'altres usuaris booked by user");
         } catch (Exception e) {
             
             e.printStackTrace();
@@ -267,9 +340,9 @@ public class AdDAO {
             }
         }
         return ads;
-    }
+    }    
     
-    public List<AdDTO> listAdsBookedByOthers(Integer user_id){
+    public List<AdDTO> listAdsBookedByOther(Integer user_id){
         ArrayList<AdDTO> ads = new ArrayList<>();
                 
         Connection con = null;
@@ -282,7 +355,7 @@ public class AdDAO {
             System.out.println("connexio creada listuProducts" + con.toString());
             //SQL
             String sql = "";
-            sql += "SELECT ad_id, ad_user_id, ad_tittle, ad_description, ad_type_id, ad_types_name, ad_price ";
+            sql += "SELECT ad_id, ad_user_id, users.user_name AS user_name, ad_tittle, ad_description, ad_type_id, ad_types_name, ad_price, ad_user_reserva, ad_user_reserva_name ";
             sql += "FROM ads, ad_types, users ";
             sql += "WHERE ads.ad_reservat = true AND ads.ad_type_id = ad_types.ad_types_id AND ads.ad_user_id = ? AND ads.ad_user_id = users.user_id";
             
@@ -297,14 +370,17 @@ public class AdDAO {
                 
                 ad.setAdId(rs.getInt("ad_id"));
                 ad.setAdUserId(rs.getInt("ad_user_id"));
+                ad.setUserName(rs.getString("user_name"));
                 ad.setAdTittle(rs.getString("ad_tittle"));
                 ad.setAdDescription(rs.getString("ad_description"));
                 ad.setAdTypeId(rs.getInt("ad_type_id"));
                 ad.setTypesName(rs.getString("ad_types_name"));
                 ad.setAdPrice(rs.getInt("ad_price"));
+                ad.setUserReservat(rs.getInt("ad_user_reserva"));
+                ad.setAdUserReservaName(rs.getString("ad_user_reserva_name"));
                 ads.add(ad);      
             }
-            System.out.println("Ens ha demanat llistar productes booked by user");
+            System.out.println("Ens ha demanat llistar productes de l'usuari booked by others");
         } catch (Exception e) {
             
             e.printStackTrace();
@@ -323,8 +399,7 @@ public class AdDAO {
             }
         }
         return ads;
-    }
-              
+    }     
     /**
      * Elimina un prodcte de la BBDD
      * @param productId String amb el id del producte a eliminar
@@ -434,7 +509,7 @@ public class AdDAO {
         return ret;
     }
     
-    public boolean bookAd (Integer ad_id, Integer ad_user_booking_id) {
+    public boolean bookAd (Integer ad_id, Integer ad_user_booking_id, String ad_user_booking_name) {
         
         boolean ret = false;
         Connection con = null;
@@ -448,13 +523,14 @@ public class AdDAO {
             
             //SQL
             String sql = "";
-            sql += "UPDATE ads SET ad_reservat = true, ad_user_reserva = ? ";
+            sql += "UPDATE ads SET ad_reservat = true, ad_user_reserva = ?, ad_user_reserva_name = ? ";
             sql += "WHERE ad_id = ?";
             
             //Fem la consulta
             pstm = con.prepareStatement(sql);
             pstm.setInt(1, ad_user_booking_id);
-            pstm.setInt(2, ad_id);
+            pstm.setString(2, ad_user_booking_name);
+            pstm.setInt(3, ad_id);
              
             //Ens retornara el numero de columnes afectades
             success = pstm.executeUpdate();

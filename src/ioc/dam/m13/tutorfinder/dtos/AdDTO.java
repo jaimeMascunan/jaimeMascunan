@@ -23,7 +23,9 @@ public class AdDTO {
     
     private boolean reservat;
     private int userReservat;
-    
+    private String adUserReservaName;
+
+   
     //Getters
     
      //Getters
@@ -63,8 +65,12 @@ public class AdDTO {
         return reservat;
     }
     
-    public int userReservat(){
+    public int getAdUserReservaId(){
         return userReservat;
+    }
+    
+    public String getAdUserReservaName() {
+        return adUserReservaName;
     }
     
     //Setters
@@ -107,6 +113,10 @@ public class AdDTO {
     
     public void setUserReservat (int userReservat){
         this.userReservat = userReservat;
+    }
+
+    public void setAdUserReservaName(String adUserReservaName) {
+        this.adUserReservaName = adUserReservaName;
     }
   
     

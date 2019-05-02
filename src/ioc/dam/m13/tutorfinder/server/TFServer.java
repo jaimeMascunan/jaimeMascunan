@@ -2,6 +2,7 @@ package ioc.dam.m13.tutorfinder.server;
 
 import ioc.dam.m13.tutorfinder.dtos.UserDTO;
 import ioc.dam.m13.tutorfinder.dtos.AdDTO;
+import ioc.dam.m13.tutorfinder.dtos.UserMessageDTO;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -9,6 +10,7 @@ import java.io.FileInputStream;
 import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
+import java.sql.Timestamp;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
@@ -36,6 +38,7 @@ public class TFServer extends Thread{
     public static final int CREATE_AD = 8;
     public static final int LIST_ADS_ROLE = 11;
     public static final int LIST_ADS_USER = 10;
+    public static final int LIST_ADS_BY_ADMIN = 19;
     public static final int DELETE_PRODUCT = 14;
     public static final int EDIT_USER_PASSWORD = 6;
     public static final int EDIT_PRODUCT = 13;
@@ -44,6 +47,8 @@ public class TFServer extends Thread{
     public static final int LIST_ADS_BOOKED_OTHER = 18;
     public static final int CANCEL_BOOKING_PRODUCT = 9;
     public static final int GET_AD_TYPE_BY_NAME = 17;
+    public static final int CREATE_MESSAGE = 20;
+    public static final int LIST_MESSAGES_USER = 21;
     
     private static final String LOGIN_CODE_STRING = "loginString";
     private static final String LOGIN_CODE_BOOLEAN = "loginBoolean";
@@ -176,6 +181,18 @@ public class TFServer extends Thread{
                     
                 case GET_AD_TYPE_BY_NAME:
                     _getAdTypeByName(dis,dos);
+                    break;
+                    
+                case LIST_ADS_BY_ADMIN:
+                    _listAdsByAdmin(dis,dos);
+                    break;
+                    
+                case CREATE_MESSAGE:
+                    _createMessage(dis,dos);
+                    break;
+                
+                case LIST_MESSAGES_USER:
+                    _listMessagesByUser(dis,dos);
                     break;
             }
                     
@@ -540,6 +557,42 @@ public class TFServer extends Thread{
             throw new RuntimeException(e);
         }
     }
+    /**
+     * @param dis
+     * @param dos 
+     */
+    private void _listAdsByAdmin(DataInputStream dis, DataOutputStream dos) {
+        try {
+            AdDAO dao = (AdDAO) TFFactory.getInstance("AD");
+            ArrayList<AdDTO> ads = new ArrayList<>();
+            int nAds;
+            //Llegim l'id del rol
+            int roleId = dis.readInt();
+            //Demanem a la BBDD la llista de tots els anuncis
+            ads = dao.listAdsByAdmin(roleId);
+            //Enviem el nombre d'anuncis que hi ha de resposta
+            nAds = ads.size();
+            dos.writeInt(nAds);
+            dos.flush();
+            
+            for (AdDTO ad : ads) {
+                //Retornem els objectes per separat al client
+                dos.writeInt(ad.getAdId());
+                dos.writeInt(ad.getAdUserId());
+                dos.writeUTF(ad.getUserName());
+                dos.writeUTF(ad.getAdTittle());
+                dos.writeUTF(ad.getAdDescription());
+                dos.writeInt(ad.getAdTypeId());
+                dos.writeUTF(ad.getTypesName());
+                dos.writeInt(ad.getAdPrice());
+                dos.flush();
+            }
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
     
     private void _listAdsBookedByUser(DataInputStream dis, DataOutputStream dos) {
         try {
@@ -564,11 +617,14 @@ public class TFServer extends Thread{
                     //Retornem els objectes per separat al client
                     dos.writeInt(adDTO.getAdId());
                     dos.writeInt(adDTO.getAdUserId());
+                    dos.writeUTF(adDTO.getUserName());
                     dos.writeUTF(adDTO.getAdTittle());
                     dos.writeUTF(adDTO.getAdDescription());
                     dos.writeInt(adDTO.getAdTypeId());
                     dos.writeUTF(adDTO.getTypesName());
                     dos.writeInt(adDTO.getAdPrice());
+                    dos.writeInt(adDTO.getAdUserReservaId());
+                    dos.writeUTF(adDTO.getAdUserReservaName());
                     dos.flush();
                 }
         } catch (Exception e) {
@@ -589,7 +645,7 @@ public class TFServer extends Thread{
             Integer user_id = dis.readInt();
 
             //Demanen a la BBDD la llista d'usuaris
-            ads = dao.listAdsBookedByOthers(user_id);
+            ads = dao.listAdsBookedByOther(user_id);
 
             //Enviem el nombre d'usuaris que hi ha de resposta
             nAds = ads.size();
@@ -601,11 +657,14 @@ public class TFServer extends Thread{
                     //Retornem els objectes per separat al client
                     dos.writeInt(adDTO.getAdId());
                     dos.writeInt(adDTO.getAdUserId());
+                    dos.writeUTF(adDTO.getUserName());
                     dos.writeUTF(adDTO.getAdTittle());
                     dos.writeUTF(adDTO.getAdDescription());
                     dos.writeInt(adDTO.getAdTypeId());
                     dos.writeUTF(adDTO.getTypesName());
                     dos.writeInt(adDTO.getAdPrice());
+                    dos.writeInt(adDTO.getAdUserReservaId());
+                    dos.writeUTF(adDTO.getAdUserReservaName());
                     dos.flush();
                 }
             
@@ -685,10 +744,10 @@ public class TFServer extends Thread{
             //Llegin l'usuari i la contrasenya del client
             Integer ad_id = dis.readInt();
             Integer ad_booking_user = dis.readInt();
-
-            
+            String ad_booking_user_name = dis.readUTF();
+          
             //Preparem la resposta
-            boolean ret = dao.bookAd(ad_id, ad_booking_user);
+            boolean ret = dao.bookAd(ad_id, ad_booking_user, ad_booking_user_name);
             
             //Enviem la resposta
             dos.writeBoolean(ret);
@@ -731,7 +790,7 @@ public class TFServer extends Thread{
     private void _getAdTypeByName(DataInputStream dis, DataOutputStream dos) {
         
         try {
-            
+           
             int adTypeId;
             AdDAO ad = (AdDAO) TFFactory.getInstance("AD");
             //Agafem del client el id a buscar
@@ -748,6 +807,75 @@ public class TFServer extends Thread{
             throw new RuntimeException(e);
         }
 
+    }
+    
+    /** 
+     * @param dis
+     * @param dos 
+     */
+    private void _createMessage(DataInputStream dis, DataOutputStream dos) {
+        try {
+            
+            UserMessageDAO dao =  (UserMessageDAO) TFFactory.getInstance("MESSAGE");
+            
+            //Llegin les dades de l'anunci a publicar
+            Integer sender_id = dis.readInt();
+            String sender_name = dis.readUTF();
+            String message_text = dis.readUTF();
+            String message_date = dis.readUTF();
+            Integer receiver_id = dis.readInt();
+            String receiver_name = dis.readUTF();
+
+            //Preparem la resposta
+            boolean ret = dao.createMessage(sender_id, sender_name, 
+                    message_text, message_date, receiver_id, receiver_name);
+            
+            //Enviem la resposta
+            dos.writeBoolean(ret);
+            dos.flush();
+            
+        } catch (Exception e) {
+            
+            e.printStackTrace();
+            throw new RuntimeException(e);   
+        }
+    }
+    /**
+     * @param dis
+     * @param dos 
+     */
+    private void _listMessagesByUser(DataInputStream dis, DataOutputStream dos) {
+       try {
+            UserMessageDAO dao = (UserMessageDAO) TFFactory.getInstance("MESSAGE");
+            ArrayList<UserMessageDTO> messages = new ArrayList<>();
+            int nMessages;
+            //Llegim l'id d'usuari
+            int userId = dis.readInt();
+            int receiverId = dis.readInt();
+            
+            //Demanem a la BBDD la llista de tots els anuncis
+            messages = dao.listMessagesByUser(userId,  receiverId );
+            //Enviem el nombre d'anuncis que hi ha de resposta
+            nMessages = messages.size();
+            dos.writeInt(nMessages);
+            dos.flush();
+            
+            for (UserMessageDTO message : messages) {
+                //Retornem els objectes per separat al client
+                dos.writeInt(message.getMessageId());
+                dos.writeInt(message.getMessageUserId());
+                dos.writeUTF(message.getMessageUserName());
+                dos.writeUTF(message.getMessageText());
+                dos.writeUTF(message.getMessageDate());
+                dos.writeInt(message.getReceiverUserId());
+                dos.writeUTF(message.getReceiverUserName());
+                dos.flush();
+            }
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
     
 
